@@ -2,9 +2,16 @@ import streamlit as st
 import json
 import os
 from pathlib import Path
-from modules.prompt_templates import load_templates
-from modules.prompt_injector import build_prompt
-from modules.image_generator import generate_image
+
+# Flexible import block
+try:
+    from modules.prompt_templates import load_templates
+    from modules.prompt_injector import build_prompt
+    from modules.image_generator import generate_image
+except ModuleNotFoundError:
+    from prompt_templates import load_templates
+    from prompt_injector import build_prompt
+    from image_generator import generate_image
 
 # Title
 st.set_page_config(page_title="ColorbookEngine", layout="wide")

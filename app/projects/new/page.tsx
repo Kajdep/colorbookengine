@@ -13,6 +13,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createProject } from "@/lib/actions"
 import { toast } from "@/components/ui/use-toast"
+import { storyTemplates, StoryTemplate } from "@/lib/story-templates"; // Import story templates
 
 const formSchema = z.object({
   title: z.string().min(2, {
@@ -24,13 +25,43 @@ const formSchema = z.object({
   author: z.string().min(2, {
     message: "Author name must be at least 2 characters.",
   }),
-  targetAgeGroup: z.string(),
-  width: z.coerce.number().min(1),
-  height: z.coerce.number().min(1),
-  unit: z.enum(["in", "cm", "mm"]),
-  bindingType: z.enum(["spiral", "perfect", "saddle", "hardcover"]),
-  tags: z.string(),
+  targetAgeGroup: z.string().optional(),
+  bindingType: z.enum(["spiral", "perfect", "saddle", "hardcover"]).optional(),
+  tags: z.string().optional(),
+  pageSizePreset: z.string().optional(), // e.g., "KDP_6x9", "A4_portrait", "custom"
+  width: z.coerce.number().min(0.1).optional(), // Optional, used if pageSizePreset is "custom"
+  height: z.coerce.number().min(0.1).optional(), // Optional, used if pageSizePreset is "custom"
+  unit: z.enum(["in", "cm", "mm"]).optional(), // Optional, used if pageSizePreset is "custom"
+  templateId: z.string().optional(),
 })
+.refine(data => {
+  if (data.pageSizePreset === "custom") {
+    return data.width !== undefined && data.height !== undefined && data.unit !== undefined;
+  }
+  return true;
+}, {
+  message: "Custom page size requires width, height, and unit.",
+  path: ["width"], // Or path: ["customPageSize"] if you prefer a general error
+})
+.refine(data => {
+  if (data.pageSizePreset === "custom") {
+    return data.width !== undefined && data.height !== undefined && data.unit !== undefined;
+  }
+  return true;
+}, {
+  message: "Custom page size requires width, height, and unit.",
+  path: ["height"], // Or path: ["customPageSize"] if you prefer a general error
+})
+.refine(data => {
+  if (data.pageSizePreset === "custom") {
+    return data.width !== undefined && data.height !== undefined && data.unit !== undefined;
+  }
+  return true;
+}, {
+  message: "Custom page size requires width, height, and unit.",
+  path: ["unit"], // Or path: ["customPageSize"] if you prefer a general error
+});
+
 
 export default function NewProject() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -43,32 +74,56 @@ export default function NewProject() {
       description: "",
       author: "",
       targetAgeGroup: "3-5",
-      width: 8.5,
-      height: 11,
-      unit: "in",
       bindingType: "perfect",
       tags: "",
+      pageSizePreset: "KDP_6x9", // Default preset
+      templateId: "", // Default to no template
+      // width, height, unit are not set by default unless pageSizePreset is 'custom'
     },
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
-      const projectId = await createProject({
+      const projectMetadata: Parameters<typeof createProject>[0] = {
         title: values.title,
         description: values.description,
-        metadata: {
-          author: values.author,
-          targetAgeGroup: values.targetAgeGroup,
-          dimensions: {
+        author: values.author,
+      };
+      if (values.tags) {
+        projectMetadata.tags = values.tags.split(",").map((tag) => tag.trim()).filter(tag => tag.length > 0);
+      }
+      if (values.targetAgeGroup) {
+        projectMetadata.targetAgeGroup = values.targetAgeGroup;
+      }
+      if (values.bindingType) {
+        projectMetadata.bindingType = values.bindingType;
+      }
+
+      const layoutSettings: Parameters<typeof createProject>[1] = {};
+      if (values.pageSizePreset === "custom") {
+        if (values.width && values.height && values.unit) {
+          layoutSettings.customPageSize = {
             width: values.width,
             height: values.height,
-            unit: values.unit as "in" | "cm" | "mm",
-          },
-          bindingType: values.bindingType as "spiral" | "perfect" | "saddle" | "hardcover",
-          tags: values.tags.split(",").map((tag) => tag.trim()),
-        },
-      })
+            unit: values.unit,
+          };
+          layoutSettings.pageSize = "custom"; // Important: also set pageSize to 'custom'
+        } else {
+          // This case should ideally be prevented by form validation
+          console.error("Custom page size selected but dimensions are missing.");
+          toast({ title: "Error", description: "Custom page size selected but dimensions are missing.", variant: "destructive" });
+          setIsSubmitting(false);
+          return;
+        }
+      } else if (values.pageSizePreset) {
+        layoutSettings.pageSize = values.pageSizePreset;
+      }
+      
+      // console.log("Submitting with metadata:", projectMetadata);
+      // console.log("Submitting with layout settings:", layoutSettings);
+
+      const projectId = await createProject(projectMetadata, layoutSettings, values.templateId)
 
       toast({
         title: "Project created",
@@ -98,6 +153,33 @@ export default function NewProject() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                  control={form.control}
+                  name="templateId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Story Template (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Start from scratch or choose a template" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">Start from scratch</SelectItem>
+                          {storyTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name} - <span className="text-xs text-muted-foreground">{template.description}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Choose a template to pre-populate chapters and page structures.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
               <div className="grid gap-6 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -151,7 +233,7 @@ export default function NewProject() {
                   name="targetAgeGroup"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Target Age Group</FormLabel>
+                      <FormLabel>Target Age Group (Optional)</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -159,11 +241,13 @@ export default function NewProject() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="3-5">3-5 years</SelectItem>
-                          <SelectItem value="6-8">6-8 years</SelectItem>
-                          <SelectItem value="9-12">9-12 years</SelectItem>
-                          <SelectItem value="13+">13+ years</SelectItem>
+                          <SelectItem value="toddler">Toddler (1-3)</SelectItem>
+                          <SelectItem value="preschool">Preschool (3-5)</SelectItem>
+                          <SelectItem value="kids">Kids (6-8)</SelectItem>
+                          <SelectItem value="preteen">Preteen (9-12)</SelectItem>
+                          <SelectItem value="teen">Teen (13-18)</SelectItem>
                           <SelectItem value="adult">Adult</SelectItem>
+                          <SelectItem value="allages">All Ages</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>The target age group for your coloring book.</FormDescription>
@@ -177,7 +261,7 @@ export default function NewProject() {
                   name="bindingType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Binding Type</FormLabel>
+                      <FormLabel>Binding Type (Optional)</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -185,10 +269,11 @@ export default function NewProject() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="spiral">Spiral Bound</SelectItem>
-                          <SelectItem value="perfect">Perfect Bound</SelectItem>
-                          <SelectItem value="saddle">Saddle Stitched</SelectItem>
-                          <SelectItem value="hardcover">Hardcover</SelectItem>
+                          <SelectItem value="perfect">Perfect Bound (Paperback)</SelectItem>
+                          <SelectItem value="saddle">Saddle Stitch (Booklet)</SelectItem>
+                          <SelectItem value="spiral">Spiral/Coil Bound</SelectItem>
+                          <SelectItem value="hardcover_casewrap">Hardcover (Casewrap)</SelectItem>
+                          <SelectItem value="hardcover_dustjacket">Hardcover (Dust Jacket)</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>The binding method for your coloring book.</FormDescription>
@@ -197,59 +282,99 @@ export default function NewProject() {
                   )}
                 />
               </div>
-
-              <div className="grid gap-6 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="width"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Width</FormLabel>
+              
+              <FormField
+                control={form.control}
+                name="pageSizePreset"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Page Size</FormLabel>
+                    <Select onValueChange={(value) => {
+                      field.onChange(value);
+                      // Optionally reset custom fields when a preset is chosen
+                      if (value !== "custom") {
+                        form.setValue("width", undefined);
+                        form.setValue("height", undefined);
+                        form.setValue("unit", undefined);
+                      }
+                    }} defaultValue={field.value}>
                       <FormControl>
-                        <Input type="number" step="0.1" {...field} />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select page size" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        <SelectItem value="KDP_5x8">5" x 8"</SelectItem>
+                        <SelectItem value="KDP_6x9">6" x 9" (KDP Standard)</SelectItem>
+                        <SelectItem value="KDP_8_5x11">8.5" x 11" (KDP Large Format)</SelectItem>
+                        <SelectItem value="A4_portrait">A4 Portrait (210mm x 297mm)</SelectItem>
+                        <SelectItem value="A5_portrait">A5 Portrait (148mm x 210mm)</SelectItem>
+                        <SelectItem value="custom">Custom Size</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Select a standard page size or choose 'Custom Size' to specify dimensions.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="height"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Height</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="unit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Unit</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+              {form.watch("pageSizePreset") === "custom" && (
+                <div className="grid gap-6 md:grid-cols-3 p-4 border rounded-md">
+                   <FormDescription className="md:col-span-3 mb-2">
+                    Specify custom page dimensions. Ensure these are final trim sizes.
+                  </FormDescription>
+                  <FormField
+                    control={form.control}
+                    name="width"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Width</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select unit" />
-                          </SelectTrigger>
+                          <Input type="number" step="0.01" placeholder="e.g., 8.5" {...field} value={field.value ?? ""} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="in">Inches</SelectItem>
-                          <SelectItem value="cm">Centimeters</SelectItem>
-                          <SelectItem value="mm">Millimeters</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="height"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Height</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="e.g., 11" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="unit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Unit</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ""} defaultValue="">
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select unit" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="in">Inches (in)</SelectItem>
+                            <SelectItem value="cm">Centimeters (cm)</SelectItem>
+                            <SelectItem value="mm">Millimeters (mm)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
 
               <FormField
                 control={form.control}

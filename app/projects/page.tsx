@@ -44,20 +44,22 @@ export default async function ProjectsPage() {
           {projects.map((project) => (
             <Card key={project.id}>
               <CardHeader>
-                <CardTitle className="truncate">{project.title}</CardTitle>
+                <CardTitle className="truncate">{project.projectMetadata.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{project.description}</p>
-                <div className="flex flex-wrap gap-2">
-                  {project.metadata.tags.map((tag) => (
-                    <span key={tag} className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-full">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{project.projectMetadata.description}</p>
+                {project.projectMetadata.tags && project.projectMetadata.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {project.projectMetadata.tags.map((tag) => (
+                      <span key={tag} className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-4 text-xs text-muted-foreground">
-                  <p>Pages: {project.pages.length}</p>
-                  <p>Updated: {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}</p>
+                  <p>Pages: {project.story.chapters.reduce((acc, chapter) => acc + chapter.pages.length, 0)}</p>
+                  <p>Updated: {formatDistanceToNow(new Date(project.projectMetadata.updatedAt), { addSuffix: true })}</p>
                 </div>
               </CardContent>
               <CardFooter>

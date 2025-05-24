@@ -1,72 +1,86 @@
-export interface Project {
-  id: string
-  title: string
-  description: string
-  coverImage?: string
-  createdAt: Date
-  updatedAt: Date
-  pages: Page[]
-  metadata: ProjectMetadata
-}
+// lib/types.ts
 
 export interface ProjectMetadata {
-  author: string
-  targetAgeGroup: string
-  dimensions: {
-    width: number
-    height: number
-    unit: "in" | "cm" | "mm"
-  }
-  bindingType: "spiral" | "perfect" | "saddle" | "hardcover"
-  tags: string[]
+  title: string;
+  author: string;
+  description: string;
+  version: string;
+  createdAt: string; // ISO_date_string
+  updatedAt: string; // ISO_date_string
+  tags?: string[];
+  targetAgeGroup?: string;
+  bindingType?: string;
 }
+
+export interface PagePrompt {
+  positive: string;
+  negative: string;
+  stylePreset: string;
+  aspectRatio: string;
+  loraToggles: string[];
+}
+
+export interface PageLayoutOptions {
+  margin?: number;
+  bleed?: number;
+  gutter?: number;
+}
+
+export type PageType = "text" | "image" | "textAndImage";
 
 export interface Page {
-  id: string
-  type: "story" | "coloring"
-  content: StoryContent | ColoringContent
-  pageNumber: number
+  id: string; // Unique ID for the page
+  pageNumber: number; // This might represent order within a chapter or overall.
+  type: PageType;
+  textContent?: string;
+  imageAssetId?: string; // Reference to an image in the media library
+  prompt?: PagePrompt;
+  layoutOptions?: PageLayoutOptions;
 }
 
-export interface StoryContent {
-  text: string
-  wordCount: number
-  characterNames: string[]
-  version: number
-  versions: { text: string; timestamp: Date }[]
+export interface Chapter {
+  title: string;
+  pages: Page[];
 }
 
-export interface ColoringContent {
-  imageUrl: string
-  prompt: string
-  style: string
-  characters: string[]
-  generationParams: {
-    model: string
-    lineWeight: number
-    complexity: number
-  }
+export interface Story {
+  chapters: Chapter[];
+  templateId?: string; // Optional: if created from a template
 }
 
-export interface Character {
-  id: string
-  name: string
-  type: string
-  traits: string[]
-  description: string
-  imageUrl?: string
+export interface MediaAsset {
+  id: string; // Unique ID for the image asset
+  fileName: string;
+  url: string; // Could be a local path or remote URL
+  tags: string[];
+  createdAt: string; // ISO_date_string
 }
 
-export interface Template {
-  id: string
-  name: string
-  description: string
-  pageCount: number
-  storyPageTemplate: string
-  imagePromptTemplate: string
-  dimensions: {
-    width: number
-    height: number
-    unit: "in" | "cm" | "mm"
-  }
+export interface LayoutSettings {
+  pageSize: string; // e.g., "KDP_6x9", "A4_portrait"
+  facingPageLayout: boolean; // Default: left text, right image
+  margins: {
+    top: number;
+    bottom: number;
+    inside: number; // Gutter side
+    outside: number;
+  };
+  bleed: number; // Standard bleed, e.g., 0.125 inches
+  spineAlignment: string; // e.g., "center"
+  customPageSize?: { width: number; height: number; unit: "in" | "cm" | "mm" };
+}
+
+export interface UserPreferences {
+  defaultModel: string;
+  stylePresets: Array<{ name: string; prompt: string }>;
+  exportFormatOptions: string[]; // e.g., "PDF_PRINT", "PDF_DIGITAL"
+}
+
+export interface ColorbookProject {
+  id: string;
+  projectMetadata: ProjectMetadata;
+  story: Story;
+  mediaLibrary: MediaAsset[];
+  layoutSettings: LayoutSettings;
+  userPreferences?: UserPreferences; // Optional for now
 }

@@ -367,13 +367,3 @@ export default function EditStoryPage() {
 // It is `<div className="absolute top-1 left-4 text-muted-foreground pointer-events-none">Start writing your story...</div>`
 // This is inside the `p-4` div. So `top-1` means 1 unit from the top of the `p-4` area. `left-4` means 4 units from left of `p-4` area.
 // This seems reasonable. The `prose` class might add top margin to the first paragraph, making it appear below the placeholder initially. This is fine.The Lexical packages were installed, and the `updatePageContent` action was created in `lib/actions.ts`. I have also updated the `app/story/edit/[projectId]/[pageId]/page.tsx` file with the Lexical editor setup, including data fetching, editor configuration, `OnChangePlugin` for state updates, "Save Page Content" button (now correctly calling `updatePageContent`), "Undo/Redo" buttons, and word/character count display.
-
-The editor loads existing page content, and changes can be saved.
-
-Now, I will proceed with **Step 4: Refactor `addPage` action in `lib/actions.ts`**.
-This involves:
-- Uncommenting the function.
-- Updating its signature and logic as specified in the subtask.
-- Ensuring it correctly finds/creates chapters (for now, assumes chapter must exist), adds the new page, updates timestamps, saves, and returns the new page.
-
-I will first read the content of `lib/actions.ts` again to ensure I'm working with the latest version.
